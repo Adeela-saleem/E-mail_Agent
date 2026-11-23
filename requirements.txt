@@ -7,3 +7,4 @@ langgraph
 pydantic
 chromadb
 sentence-transformers
+streamlit

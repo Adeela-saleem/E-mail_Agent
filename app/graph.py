@@ -1,4 +1,8 @@
-"""LangGraph workflow: classify -> (draft -> approve -> save) -> label, with conditional routing."""
+"""LangGraph workflows.
+
+build_graph()           -> terminal version: classify -> draft -> approve(y/n) -> save -> label
+build_analysis_graph()  -> UI version: classify -> draft (approval UI mein hoti hai)
+"""
 from typing import TypedDict
 
 from langgraph.graph import END, START, StateGraph
@@ -60,7 +64,7 @@ def route_after_approve(state: AgentState) -> str:
     return "save" if state.get("approved") else "skip"
 
 
-# ---- GRAPH BANAO ----
+# ---- GRAPH 1: terminal version ----
 def build_graph():
     g = StateGraph(AgentState)
 
@@ -76,5 +80,19 @@ def build_graph():
     g.add_conditional_edges("approve", route_after_approve, {"save": "save", "skip": "label"})
     g.add_edge("save", "label")
     g.add_edge("label", END)
+
+    return g.compile()
+
+
+# ---- GRAPH 2: UI version (approval + save + label UI ke buttons se hota hai) ----
+def build_analysis_graph():
+    g = StateGraph(AgentState)
+
+    g.add_node("classify", classify_node)
+    g.add_node("draft", draft_node)
+
+    g.add_edge(START, "classify")
+    g.add_conditional_edges("classify", route_after_classify, {"draft": "draft", "skip": END})
+    g.add_edge("draft", END)
 
     return g.compile()

@@ -1,4 +1,5 @@
 """RAG: data/docs ki files ko Chroma mein index karo aur mail ke hisaab se relevant info dhundo."""
+from functools import lru_cache
 from pathlib import Path
 
 import chromadb
@@ -11,10 +12,13 @@ COLLECTION_NAME = "knowledge"
 EMBED_MODEL = "all-MiniLM-L6-v2"  # free, local, CPU par chalta hai
 
 
+@lru_cache(maxsize=1)
 def _embedding_fn():
+    # lru_cache: model sirf pehli baar load hota hai, phir yaad rehta hai (speed ke liye)
     return embedding_functions.SentenceTransformerEmbeddingFunction(model_name=EMBED_MODEL)
 
 
+@lru_cache(maxsize=1)
 def _client():
     return chromadb.PersistentClient(path=str(DB_DIR))
 
