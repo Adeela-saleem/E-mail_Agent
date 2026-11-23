@@ -1,5 +1,6 @@
-"""Gmail API helper: login (OAuth) + unread mails fetch."""
+"""Gmail API helper: login (OAuth), unread mails fetch, aur reply draft save."""
 import base64
+from email.message import EmailMessage
 from pathlib import Path
 
 from google.auth.transport.requests import Request
@@ -7,9 +8,11 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
-# Step 1 mein sirf read access. Draft/send ke waqt scope badlenge
-# (aur token.json delete karke dobara login karna hoga).
-SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
+# readonly = mails padhna, compose = draft banana (send nahi karta)
+SCOPES = [
+    "https://www.googleapis.com/auth/gmail.readonly",
+    "https://www.googleapis.com/auth/gmail.compose",
+]
 
 ROOT = Path(__file__).resolve().parent.parent
 CREDS_FILE = ROOT / "credentials.json"
@@ -69,6 +72,7 @@ def fetch_unread(max_results: int = 5) -> list[dict]:
             {
                 "id": msg["id"],
                 "thread_id": msg["threadId"],
+                "message_id": headers.get("message-id", ""),
                 "from": headers.get("from", ""),
                 "subject": headers.get("subject", "(no subject)"),
                 "date": headers.get("date", ""),
@@ -76,3 +80,30 @@ def fetch_unread(max_results: int = 5) -> list[dict]:
             }
         )
     return mails
+
+
+def create_draft(mail: dict, reply_text: str) -> str:
+    """Reply ko Gmail Drafts mein save karo (bhejta nahi). Draft ka id return karta hai."""
+    service = get_service()
+
+    subject = mail["subject"]
+    if not subject.lower().startswith("re:"):
+        subject = f"Re: {subject}"
+
+    msg = EmailMessage()
+    msg["To"] = mail["from"]
+    msg["Subject"] = subject
+    if mail.get("message_id"):
+        # Isse reply usi thread mein jata hai
+        msg["In-Reply-To"] = mail["message_id"]
+        msg["References"] = mail["message_id"]
+    msg.set_content(reply_text)
+
+    raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+    draft = (
+        service.users()
+        .drafts()
+        .create(userId="me", body={"message": {"raw": raw, "threadId": mail["thread_id"]}})
+        .execute()
+    )
+    return draft["id"]
