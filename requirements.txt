@@ -3,4 +3,7 @@ google-auth-oauthlib
 google-auth-httplib2
 python-dotenv
 langchain-groq
+langgraph
 pydantic
+chromadb
+sentence-transformers

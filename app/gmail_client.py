@@ -1,4 +1,4 @@
-"""Gmail API helper: login (OAuth), unread mails fetch, aur reply draft save."""
+"""Gmail API helper: login (OAuth), unread mails fetch, draft save, aur label tool."""
 import base64
 from email.message import EmailMessage
 from pathlib import Path
@@ -8,11 +8,14 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
-# readonly = mails padhna, compose = draft banana (send nahi karta)
+# readonly = mails padhna, compose = draft banana (send nahi), modify = label lagana
 SCOPES = [
     "https://www.googleapis.com/auth/gmail.readonly",
     "https://www.googleapis.com/auth/gmail.compose",
+    "https://www.googleapis.com/auth/gmail.modify",
 ]
+
+LABEL_NAME = "AI-Processed"
 
 ROOT = Path(__file__).resolve().parent.parent
 CREDS_FILE = ROOT / "credentials.json"
@@ -50,12 +53,16 @@ def _extract_body(payload) -> str:
 
 
 def fetch_unread(max_results: int = 5) -> list[dict]:
-    """Inbox ki unread mails fetch karo."""
+    """Inbox ki unread mails fetch karo (jin par AI-Processed label nahi hai)."""
     service = get_service()
     resp = (
         service.users()
         .messages()
-        .list(userId="me", q="is:unread in:inbox", maxResults=max_results)
+        .list(
+            userId="me",
+            q=f"is:unread in:inbox -label:{LABEL_NAME}",
+            maxResults=max_results,
+        )
         .execute()
     )
 
@@ -107,3 +114,35 @@ def create_draft(mail: dict, reply_text: str) -> str:
         .execute()
     )
     return draft["id"]
+
+
+def _get_or_create_label(service, name: str = LABEL_NAME) -> str:
+    """Label ka id dhundo, na mile to naya bana do."""
+    labels = service.users().labels().list(userId="me").execute().get("labels", [])
+    for label in labels:
+        if label["name"] == name:
+            return label["id"]
+
+    created = (
+        service.users()
+        .labels()
+        .create(
+            userId="me",
+            body={
+                "name": name,
+                "labelListVisibility": "labelShow",
+                "messageListVisibility": "show",
+            },
+        )
+        .execute()
+    )
+    return created["id"]
+
+
+def mark_processed(mail_id: str) -> None:
+    """TOOL: mail par AI-Processed label lagao, taake agent usay dobara na uthaye."""
+    service = get_service()
+    label_id = _get_or_create_label(service)
+    service.users().messages().modify(
+        userId="me", id=mail_id, body={"addLabelIds": [label_id]}
+    ).execute()

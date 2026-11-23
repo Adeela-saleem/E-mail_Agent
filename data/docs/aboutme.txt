@@ -1,0 +1,22 @@
+About Adeela
+
+Adeela is a BSCS student at Jinnah University for Women, Karachi. She is building a career as an AI/ML engineer and has been learning it on her own for about two years, with a focus on generative AI, agentic AI and machine learning.
+
+Current work
+complete internship as a software developer at zero vertical labs . She is also a Machine Learning and Generative AI intern at Big Brains (remote).
+
+Projects
+
+- Face recognition based attendance system.
+- rag based chatbot 
+- SessionHub: her final year project, a real-time classroom platform.
+- AI email agent: reads Gmail, classifies mails and drafts replies using Groq, LangGraph and Chroma.
+
+Links
+
+- GitHub: github.com/Adeela-saleem
+- Portfolio: adeela-saleem.github.io
+
+Skills
+
+Python, LangChain, LangGraph, TensorFlow, RAG, vector databases, prompt engineering, Docker basics.
