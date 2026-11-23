@@ -10,10 +10,11 @@ st.set_page_config(page_title="Email Agent", page_icon="📧", layout="wide")
 st.title("📧 Email Agent")
 st.caption("Agent mails padhta hai, reply draft karta hai. Save tumhare approve karne par hi hota hai.")
 
-if "items" not in st.session_state:
-    st.session_state.items = []  # reply wali mails (approval pending)
-if "ignored" not in st.session_state:
-    st.session_state.ignored = []  # newsletter/spam jin par reply nahi chahiye
+# NOTE: "items" naam mat rakhna, session_state.items dict ka built-in method hai
+if "pending" not in st.session_state:
+    st.session_state["pending"] = []  # reply wali mails (approval pending)
+if "skipped_mails" not in st.session_state:
+    st.session_state["skipped_mails"] = []  # newsletter/spam jin par reply nahi chahiye
 
 
 @st.cache_resource
@@ -27,28 +28,28 @@ if st.button("Inbox check karo", type="primary"):
     graph = get_graph()
     with st.spinner("Mails fetch aur analyze ho rahi hain..."):
         mails = fetch_unread(max_results=max_mails)
-        items, ignored = [], []
+        pending, skipped = [], []
         for m in mails:
             out = graph.invoke({"mail": m})
             analysis = out["analysis"]
             if analysis.needs_reply:
-                items.append({"mail": m, "analysis": analysis, "reply": out["reply"]})
+                pending.append({"mail": m, "analysis": analysis, "reply": out["reply"]})
             else:
                 mark_processed(m["id"])  # reply nahi chahiye, to label laga do
-                ignored.append({"mail": m, "analysis": analysis})
+                skipped.append({"mail": m, "analysis": analysis})
             time.sleep(1)  # Groq free tier rate limit
-        st.session_state.items = items
-        st.session_state.ignored = ignored
+        st.session_state["pending"] = pending
+        st.session_state["skipped_mails"] = skipped
     if not mails:
         st.info("Koi nayi unread mail nahi mili.")
 
 # ---- Reply wali mails ----
-items = st.session_state.items
-st.subheader(f"Reply wali mails ({len(items)})")
-if not items:
+pending = st.session_state["pending"]
+st.subheader(f"Reply wali mails ({len(pending)})")
+if not pending:
     st.write("Abhi koi pending draft nahi.")
 
-for item in list(items):
+for item in list(pending):
     m, a = item["mail"], item["analysis"]
     with st.container(border=True):
         st.markdown(f"**{m['subject']}**  \nFrom: {m['from']}  ·  `{a.category}`")
@@ -65,16 +66,20 @@ for item in list(items):
         if c1.button("Save to Gmail Drafts", key=f"save_{m['id']}"):
             create_draft(m, st.session_state[key])
             mark_processed(m["id"])
-            st.session_state.items = [i for i in st.session_state.items if i["mail"]["id"] != m["id"]]
+            st.session_state["pending"] = [
+                i for i in st.session_state["pending"] if i["mail"]["id"] != m["id"]
+            ]
             st.rerun()
         if c2.button("Skip", key=f"skip_{m['id']}"):
             mark_processed(m["id"])
-            st.session_state.items = [i for i in st.session_state.items if i["mail"]["id"] != m["id"]]
+            st.session_state["pending"] = [
+                i for i in st.session_state["pending"] if i["mail"]["id"] != m["id"]
+            ]
             st.rerun()
 
 # ---- Ignore ki hui mails ----
-ignored = st.session_state.ignored
-if ignored:
-    with st.expander(f"Ignore ki gayi mails ({len(ignored)}), reply ki zaroorat nahi"):
-        for it in ignored:
+skipped = st.session_state["skipped_mails"]
+if skipped:
+    with st.expander(f"Ignore ki gayi mails ({len(skipped)}), reply ki zaroorat nahi"):
+        for it in skipped:
             st.write(f"**{it['mail']['subject']}**: {it['analysis'].category}, {it['analysis'].summary}")
