@@ -4,7 +4,7 @@ An agentic AI app that connects to Gmail, reads unread emails, decides which one
 
 Built with free tools only: Groq, LangGraph, Chroma, Streamlit and the Gmail API.
 
-
+![Screenshot](screenshot.png)
 
 ## What it does
 
@@ -14,7 +14,7 @@ Built with free tools only: Groq, LangGraph, Chroma, Streamlit and the Gmail API
 4. Drafts a reply with an LLM
 5. Asks for your approval on every reply:
    - **Terminal version** (`run_graph.py`): `[s]` send now (with a second confirmation), `[d]` save as Gmail draft, `[n]` skip
-   - **Streamlit UI** (`ui.py`): edit the draft, then save it to Gmail Drafts or skip
+   - **Streamlit UI** (`ui.py`): edit the draft, then **Send reply** (with a confirmation step), **Save to Gmail Drafts**, or **Skip**
 6. Nothing is ever sent without your explicit approval
 7. Labels every handled email `AI-Processed` so it is never picked up twice
 
@@ -117,7 +117,7 @@ The first run opens a browser for Google login. After that a `token.json` is sto
 ## Safety
 
 - Nothing is sent automatically: every reply needs your approval
-- Sending in the terminal needs two confirmations (`s`, then `y`). Saving a draft or skipping needs one
+- Sending needs two confirmations (terminal: `s`, then `y`; UI: "Send reply", then "Yes, send"). Saving a draft or skipping needs one
 - Automated mails (newsletters, notifications, spam) are classified as "no reply needed" and are never replied to
 - Read the draft and the `To:` address shown before you send. The LLM can still make mistakes
 - `credentials.json`, `token.json` and `.env` are in `.gitignore`. Never commit them
@@ -126,7 +126,7 @@ The first run opens a browser for Google login. After that a `token.json` is sto
 ## Roadmap
 
 - [x] Send replies after approval (terminal)
-- [ ] Send button in the Streamlit UI
+- [x] Send button in the Streamlit UI
 - [ ] Auto-run in the background on a schedule
 - [ ] Calendar tool for meeting requests
 - [ ] Docker setup

@@ -1,20 +1,26 @@
-"""Streamlit approval UI. Chalane ke liye: streamlit run ui.py"""
+"""Streamlit approval UI. Run with: streamlit run ui.py"""
 import time
 
 import streamlit as st
 
-from app.gmail_client import create_draft, fetch_unread, mark_processed
+from app.gmail_client import (
+    create_draft,
+    fetch_unread,
+    mark_processed,
+    reply_address,
+    send_reply,
+)
 from app.graph import build_analysis_graph
 
 st.set_page_config(page_title="Email Agent", page_icon="📧", layout="wide")
 st.title("📧 Email Agent")
-st.caption("Agent mails padhta hai, reply draft karta hai. Save tumhare approve karne par hi hota hai.")
+st.caption("The agent reads your mails and drafts replies. Nothing is sent or saved until you approve it.")
 
-# NOTE: "items" naam mat rakhna, session_state.items dict ka built-in method hai
+# NOTE: don't name a key "items": st.session_state.items is a built-in dict method
 if "pending" not in st.session_state:
-    st.session_state["pending"] = []  # reply wali mails (approval pending)
+    st.session_state["pending"] = []  # mails that need a reply (waiting for approval)
 if "skipped_mails" not in st.session_state:
-    st.session_state["skipped_mails"] = []  # newsletter/spam jin par reply nahi chahiye
+    st.session_state["skipped_mails"] = []  # newsletters/spam that need no reply
 
 
 @st.cache_resource
@@ -22,11 +28,11 @@ def get_graph():
     return build_analysis_graph()
 
 
-max_mails = st.sidebar.slider("Ek baar mein kitni mails", 1, 10, 5)
+max_mails = st.sidebar.slider("Mails to check per run", 1, 10, 5)
 
-if st.button("Inbox check karo", type="primary"):
+if st.button("Check inbox", type="primary"):
     graph = get_graph()
-    with st.spinner("Mails fetch aur analyze ho rahi hain..."):
+    with st.spinner("Fetching and analyzing mails..."):
         mails = fetch_unread(max_results=max_mails)
         pending, skipped = [], []
         for m in mails:
@@ -35,19 +41,19 @@ if st.button("Inbox check karo", type="primary"):
             if analysis.needs_reply:
                 pending.append({"mail": m, "analysis": analysis, "reply": out["reply"]})
             else:
-                mark_processed(m["id"])  # reply nahi chahiye, to label laga do
+                mark_processed(m["id"])  # no reply needed, so label it as handled
                 skipped.append({"mail": m, "analysis": analysis})
             time.sleep(1)  # Groq free tier rate limit
         st.session_state["pending"] = pending
         st.session_state["skipped_mails"] = skipped
     if not mails:
-        st.info("Koi nayi unread mail nahi mili.")
+        st.info("No new unread mails found.")
 
-# ---- Reply wali mails ----
+# ---- Mails that need a reply ----
 pending = st.session_state["pending"]
-st.subheader(f"Reply wali mails ({len(pending)})")
+st.subheader(f"Mails needing a reply ({len(pending)})")
 if not pending:
-    st.write("Abhi koi pending draft nahi.")
+    st.write("No pending drafts right now.")
 
 for item in list(pending):
     m, a = item["mail"], item["analysis"]
@@ -60,26 +66,49 @@ for item in list(pending):
         key = f"reply_{m['id']}"
         if key not in st.session_state:
             st.session_state[key] = item["reply"]
-        st.text_area("Draft reply (edit kar sakti ho)", key=key, height=180)
+        st.text_area("Draft reply (you can edit it)", key=key, height=180)
 
-        c1, c2, _ = st.columns([1, 1, 4])
-        if c1.button("Save to Gmail Drafts", key=f"save_{m['id']}"):
+        confirm_key = f"confirm_{m['id']}"
+        c1, c2, c3, _ = st.columns([1, 1.4, 1, 3])
+
+        if c1.button("Send reply", key=f"send_{m['id']}", type="primary"):
+            st.session_state[confirm_key] = True  # ask for confirmation first
+            st.rerun()
+
+        if c2.button("Save to Gmail Drafts", key=f"save_{m['id']}"):
             create_draft(m, st.session_state[key])
             mark_processed(m["id"])
             st.session_state["pending"] = [
                 i for i in st.session_state["pending"] if i["mail"]["id"] != m["id"]
             ]
             st.rerun()
-        if c2.button("Skip", key=f"skip_{m['id']}"):
+
+        if c3.button("Skip", key=f"skip_{m['id']}"):
             mark_processed(m["id"])
             st.session_state["pending"] = [
                 i for i in st.session_state["pending"] if i["mail"]["id"] != m["id"]
             ]
             st.rerun()
 
-# ---- Ignore ki hui mails ----
+        # Second confirmation so a reply is never sent by accident
+        if st.session_state.get(confirm_key):
+            st.warning(f"This will send the reply to **{reply_address(m)}** right now.")
+            y, n, _ = st.columns([1, 1, 4])
+            if y.button("Yes, send", key=f"yes_{m['id']}", type="primary"):
+                send_reply(m, st.session_state[key])
+                mark_processed(m["id"])
+                st.session_state["pending"] = [
+                    i for i in st.session_state["pending"] if i["mail"]["id"] != m["id"]
+                ]
+                st.session_state.pop(confirm_key, None)
+                st.rerun()
+            if n.button("Cancel", key=f"cancel_{m['id']}"):
+                st.session_state[confirm_key] = False
+                st.rerun()
+
+# ---- Mails that were ignored ----
 skipped = st.session_state["skipped_mails"]
 if skipped:
-    with st.expander(f"Ignore ki gayi mails ({len(skipped)}), reply ki zaroorat nahi"):
+    with st.expander(f"Ignored mails ({len(skipped)}), no reply needed"):
         for it in skipped:
             st.write(f"**{it['mail']['subject']}**: {it['analysis'].category}, {it['analysis'].summary}")
