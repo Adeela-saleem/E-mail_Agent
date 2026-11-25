@@ -1,4 +1,4 @@
-"""Gmail API helper: login (OAuth), unread mails fetch, draft save, aur label tool."""
+"""Gmail API helper: login (OAuth), unread fetch, draft save, send reply, aur label tool."""
 import base64
 from email.message import EmailMessage
 from pathlib import Path
@@ -8,10 +8,11 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
-# readonly = mails padhna, compose = draft banana (send nahi), modify = label lagana
+# readonly = mails padhna, compose = draft banana, send = mail bhejna, modify = label lagana
 SCOPES = [
     "https://www.googleapis.com/auth/gmail.readonly",
     "https://www.googleapis.com/auth/gmail.compose",
+    "https://www.googleapis.com/auth/gmail.send",
     "https://www.googleapis.com/auth/gmail.modify",
 ]
 
@@ -81,6 +82,7 @@ def fetch_unread(max_results: int = 5) -> list[dict]:
                 "thread_id": msg["threadId"],
                 "message_id": headers.get("message-id", ""),
                 "from": headers.get("from", ""),
+                "reply_to": headers.get("reply-to", ""),
                 "subject": headers.get("subject", "(no subject)"),
                 "date": headers.get("date", ""),
                 "body": _extract_body(msg["payload"]).strip(),
@@ -89,16 +91,14 @@ def fetch_unread(max_results: int = 5) -> list[dict]:
     return mails
 
 
-def create_draft(mail: dict, reply_text: str) -> str:
-    """Reply ko Gmail Drafts mein save karo (bhejta nahi). Draft ka id return karta hai."""
-    service = get_service()
-
+def _build_reply_message(mail: dict, reply_text: str) -> dict:
+    """Reply ka Gmail-format message body banao (draft aur send dono yahi use karte hain)."""
     subject = mail["subject"]
     if not subject.lower().startswith("re:"):
         subject = f"Re: {subject}"
 
     msg = EmailMessage()
-    msg["To"] = mail["from"]
+    msg["To"] = mail.get("reply_to") or mail["from"]
     msg["Subject"] = subject
     if mail.get("message_id"):
         # Isse reply usi thread mein jata hai
@@ -107,13 +107,39 @@ def create_draft(mail: dict, reply_text: str) -> str:
     msg.set_content(reply_text)
 
     raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+    return {"raw": raw, "threadId": mail["thread_id"]}
+
+
+def create_draft(mail: dict, reply_text: str) -> str:
+    """Reply ko Gmail Drafts mein save karo (bhejta nahi). Draft ka id return karta hai."""
+    service = get_service()
     draft = (
         service.users()
         .drafts()
-        .create(userId="me", body={"message": {"raw": raw, "threadId": mail["thread_id"]}})
+        .create(userId="me", body={"message": _build_reply_message(mail, reply_text)})
         .execute()
     )
     return draft["id"]
+
+
+def send_reply(mail: dict, reply_text: str) -> str:
+    """TOOL: reply asli mein BHEJ do. Sent message ka id return karta hai.
+
+    Sirf approval ke baad hi call hona chahiye (graph.py mein approve node ke baad).
+    """
+    service = get_service()
+    sent = (
+        service.users()
+        .messages()
+        .send(userId="me", body=_build_reply_message(mail, reply_text))
+        .execute()
+    )
+    return sent["id"]
+
+
+def reply_address(mail: dict) -> str:
+    """Reply kis address par jayegi (approval screen par dikhane ke liye)."""
+    return mail.get("reply_to") or mail["from"]
 
 
 def _get_or_create_label(service, name: str = LABEL_NAME) -> str:
