@@ -1,6 +1,7 @@
 """Gmail API helper: login (OAuth), unread fetch, draft save, send reply, aur label tool."""
 import base64
 from email.message import EmailMessage
+from functools import lru_cache
 from pathlib import Path
 
 from google.auth.transport.requests import Request
@@ -23,8 +24,12 @@ CREDS_FILE = ROOT / "credentials.json"
 TOKEN_FILE = ROOT / "token.json"
 
 
+@lru_cache(maxsize=1)
 def get_service():
-    """Login karo (pehli baar browser khulega) aur Gmail service return karo."""
+    """Login karo (pehli baar browser khulega) aur Gmail service return karo.
+
+    lru_cache: service ek baar banti hai, phir har call par dobara nahi banti (speed ke liye).
+    """
     creds = None
     if TOKEN_FILE.exists():
         creds = Credentials.from_authorized_user_file(str(TOKEN_FILE), SCOPES)
