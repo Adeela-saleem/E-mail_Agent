@@ -4,7 +4,7 @@ An agentic AI app that connects to Gmail, reads unread emails, decides which one
 
 Built with free tools only: Groq, LangGraph, Chroma, Streamlit and the Gmail API.
 
-![Screenshot](screenshot.png)
+
 
 ## What it does
 

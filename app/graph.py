@@ -43,38 +43,38 @@ def approve_node(state: AgentState):
     print(state["reply"])
     print("  -------------------")
     while True:
-        ans = input("  [s] Send abhi  |  [d] Sirf draft save  |  [n] Skip : ").strip().lower()
+        ans = input("  [s] Send now  |  [d] Save as draft only  |  [n] Skip : ").strip().lower()
         if ans == "s":
             # Bhejne se pehle ek aakhri confirmation (galti se send na ho)
-            sure = input("  Pakka bhejni hai? (y/n): ").strip().lower()
+            sure = input("  Are you sure you want to send? (y/n): ").strip().lower()
             if sure == "y":
                 return {"decision": "send"}
-            print("  Send cancel. Dobara chuno.")
+            print("  Send cancelled. Choose again.")
         elif ans == "d":
             return {"decision": "draft"}
         elif ans == "n":
             return {"decision": "skip"}
         else:
-            print("  s, d ya n likho.")
+            print("  Please type s, d or n.")
 
 
 def send_node(state: AgentState):
     """TOOL node: reply asli mein bhejo (sirf approval ke baad yahan pohanchta hai)."""
     sent_id = send_reply(state["mail"], state["reply"])
-    print(f"  [Mail BHEJ di gayi, id: {sent_id}]")
+    print(f"  [Email SENT, id: {sent_id}]")
     return {"sent_id": sent_id}
 
 
 def save_node(state: AgentState):
     draft_id = create_draft(state["mail"], state["reply"])
-    print(f"  [Draft save ho gaya, id: {draft_id}]")
+    print(f"  [Draft saved, id: {draft_id}]")
     return {"draft_id": draft_id}
 
 
 def label_node(state: AgentState):
     """TOOL node: mail par AI-Processed label lagao (har raaste ke end par chalta hai)."""
     mark_processed(state["mail"]["id"])
-    print("  [Label lag gaya: AI-Processed]")
+    print("  [Label added: AI-Processed]")
     return {}
 
 
